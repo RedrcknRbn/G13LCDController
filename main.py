@@ -12,7 +12,8 @@ config.read("config.ini")
 if "SETTINGS" not in config:
     config["SETTINGS"] = {}
 # set default config stuff
-config["SETTINGS"].setdefault("DLLPath", r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll")
+config["SETTINGS"].setdefault(
+    "DLLPath", r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll")
 config["SETTINGS"].setdefault("AppletName", r"Python LCD Controller")
 config["SETTINGS"].setdefault("LCDType", r"MONO")
 
@@ -70,16 +71,22 @@ def sendImage(img):  # takes in a 160x43 Pillow image in monochrome mode
     lcd_buffer = byte_array_type.from_buffer(bytearray(imgbytes))
     MonoSetBackground(lcd_buffer)
 
+def convertImage(img):
+    img = img.convert("L")
+    img = img.resize((160, 43), Image.Resampling.LANCZOS)
+    # mono devices are EVIL and only support 2 states (on/off)
+    img = img.point(lambda x: 255 if x >= 128 else 0)
+    return img
+
+def captureScreen():
+    img = ImageGrab.grab()
+    img = convertImage(img)
+    sendImage(img)
 
 try:
     if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
         while True:
-            img = ImageGrab.grab()
-            img = img.convert("L")
-            img = img.resize((160, 43), Image.Resampling.LANCZOS)
-            # mono devices are EVIL and only support 2 states (on/off)
-            img = img.point(lambda x: 255 if x >= 128 else 0)
-            sendImage(img)
+            sendImage(convertImage(Image.open("image.png")))
             LogiLCDUpdate()
             time.sleep(1/30)
 
