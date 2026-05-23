@@ -19,7 +19,7 @@ The app uses `config.ini` for settings and profiles.
 - `appletname` - name shown in the SDK applet list
 - `lcdtype` - `MONO` or `COLOR` // Note, COLOR support is not yet implemented
 - `mediapath` - default media path
-- `mediatype` - `FOLDER`, `FILE`, or `SCREEN`
+- `mediatype` - `FOLDER`, `FILE`, `SCREEN`, `TEXT`
 - `startupprofile` - profile to load on startup
 - `profileorder` - comma-separated profile names to define switch order
 ### Profiles
@@ -49,6 +49,7 @@ Use the G13 button mapping to switch profiles at runtime:
 - `FOLDER` mode loops through files in the configured folder.
 - `FILE` mode displays a single file.
 - `SCREEN` mode captures the screen and sends it to the LCD.
+- `TEXT` mode takes in text from a file, with a max of 4 lines.
 - If `config.ini` is missing required sections, the app creates a fallback base profile.
 ## Disclaimer
 PRs are heavily encouraged, as I am still very new to python, and thus this codebase is a bit bad. You can get started by looking at `TODO.md`!

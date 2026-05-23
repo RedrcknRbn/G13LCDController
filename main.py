@@ -124,9 +124,26 @@ if not init_success:
 def wrapText(inputText):
     # Each line supports ~26-30 characters, so we'll need wrapping for each 26 characters (to be safe!)  -- SUBNOTE: IT TURNS OUT CHARACTERS ARENT MONOSPACED ON THIS THING. FUCCCCKKKKKKKKKKKKKKKKKKKK
     # This also means we need to split it up into a max of 4 lines for the mono display
-    userText = textwrap.wrap(inputText, 26)[:4]
-    for i, text in enumerate(userText):
+    lines = []
+    if inputText is None:
+        inputText = ""
+    for raw_line in str(inputText).splitlines():
+        # preserve empty lines
+        if raw_line.strip() == "":
+            lines.append("")
+        else:
+            wrapped = textwrap.wrap(raw_line, 26)
+            if not wrapped:
+                lines.append("")
+            else:
+                lines.extend(wrapped)
+
+    # limit to 4 lines for the mono display and send each line
+    lines = lines[:4]
+    for i in range(4):
+        text = lines[i] if i < len(lines) else ""
         MonoSetText(i, ctypes.c_wchar_p(text))
+    LogiLCDUpdate()
 
 # sends the image to the driver
 def sendImage(img):  # takes in a 160x43 Pillow image in monochrome mode
@@ -135,6 +152,18 @@ def sendImage(img):  # takes in a 160x43 Pillow image in monochrome mode
         byte_array_type = ctypes.c_byte * 6880
         lcd_buffer = byte_array_type.from_buffer(bytearray(imgbytes))
         MonoSetBackground(lcd_buffer)
+        LogiLCDUpdate()
+
+# clear the ENTIRE screen
+def clearScreen():
+    # send an all-zero buffer to clear background
+    byte_array_type = ctypes.c_byte * 6880
+    empty_buffer = byte_array_type.from_buffer(bytearray(b"\x00" * 6880))
+    MonoSetBackground(empty_buffer)
+    # clear text lines (mono supports 4 lines)
+    for i in range(4):
+        MonoSetText(i, ctypes.c_wchar_p(""))
+    LogiLCDUpdate()
 
 # convert the image to the correct format for the LCD (160x43, monochrome)
 def convertImage(img):
@@ -214,6 +243,30 @@ def displayFile(path):
         LogiLCDUpdate()
         time.sleep(1/fps)
 
+
+# safely read a text file path and return its contents
+def read_text_file(path, max_chars=10_000):
+    try:
+        if not path:
+            return ""
+        # Expand user and make absolute for safety
+        path = os.path.expanduser(path)
+        if not os.path.exists(path):
+            print(f"Text file not found: {path}")
+            return ""
+        if not os.path.isfile(path):
+            print(f"Path is not a file: {path}")
+            return ""
+        # Open with utf-8 and replace errors to avoid decode exceptions
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read(max_chars)
+            return content
+    except PermissionError:
+        print(f"Permission denied reading file: {path}")
+    except OSError as e:
+        print(f"OS error reading file {path}: {e}")
+    return ""
+
 # create a thread to check for button presses without blocking the main thread
 lastPressed = []
 def asyncButtonWorker():
@@ -230,7 +283,7 @@ def asyncButtonWorker():
 profile_lock = threading.Lock()
 profile_change_event = threading.Event()
 
-
+# switch profiles and update global variables accordingly
 def set_active_profile(new_index):
     global active_profile_index, active_profile, MediaPath, MediaType, AppletName, LCDType
     new_index %= len(active_profile_names)
@@ -245,7 +298,7 @@ def set_active_profile(new_index):
     print(f"Switched to profile: {active_profile['name']} ({active_profile_names[active_profile_index]})")
     profile_change_event.set()
 
-
+# check and perform button actions
 def handleButtonPresses():
     try:
         currentlyPressed = button_queue.get_nowait()
@@ -264,6 +317,7 @@ def main():
             input_thread = threading.Thread(target=asyncButtonWorker, daemon=True)
             input_thread.start()
             while True:
+                clearScreen()
                 if profile_change_event.is_set():
                     profile_change_event.clear()
                     continue
@@ -274,6 +328,13 @@ def main():
                     displayFile(MediaPath)
                 elif MediaType == "SCREEN":
                     captureScreen()
+                elif MediaType == "TEXT":
+                    text_content = read_text_file(MediaPath)
+                    if text_content:
+                        wrapText(text_content)
+                    else:
+                        clearScreen()
+                        time.sleep(1)
                 else:
                     print(f"Unknown media type: {MediaType}")
                     time.sleep(1)
