@@ -334,7 +334,7 @@ def main():
                         wrapText(text_content)
                     else:
                         clearScreen()
-                        time.sleep(1)
+                    time.sleep(1)
                 else:
                     print(f"Unknown media type: {MediaType}")
                     time.sleep(1)
