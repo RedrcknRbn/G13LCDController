@@ -3,6 +3,7 @@
 	- [ ] proper per-frame duration sleep
 - [x] Video support
 - [ ] Streamed Video Support (such as VLC's Network Stream system)
-- [ ] Multiple configurations for hotswapping modes
+- [x] Multiple configurations for hotswapping modes
 	- [ ] Add control for swapping config onto the actual G13
 - [ ] Create as startup service (?)
+- [ ] Add actual COLOR setup LOL
