@@ -22,20 +22,53 @@ config["DEFAULT"].setdefault("AppletName", r"Python LCD Controller")
 config["DEFAULT"].setdefault("LCDType", r"MONO")
 config["DEFAULT"].setdefault("MediaPath", r"./media")
 config["DEFAULT"].setdefault("MediaType", r"FOLDER") # FOLDER for looping through a folder, FILE for just displaying a single file, SCREEN for capturing the screen and displaying it
+config["DEFAULT"].setdefault("StartupProfile", "default")
+config["DEFAULT"].setdefault("ProfileOrder", "")
 
+# Profile support
+profile_names = [section for section in config.sections() if section != configparser.DEFAULTSECT]
+if not profile_names:
+    config["base"] = {}
+    config["base"].setdefault("Name", "Base Profile")
+    config["base"].setdefault("MediaPath", config["DEFAULT"]["MediaPath"])
+    config["base"].setdefault("MediaType", config["DEFAULT"]["MediaType"])
+    profile_names = ["base"]
+
+profile_order_input = config["DEFAULT"].get("ProfileOrder", "")
+ordered_profiles = [name.strip() for name in profile_order_input.split(",") if name.strip() in profile_names]
+ordered_profiles += [name for name in profile_names if name not in ordered_profiles]
+if not ordered_profiles:
+    ordered_profiles = profile_names
+
+startup_profile = config["DEFAULT"].get("StartupProfile", ordered_profiles[0])
+if startup_profile not in ordered_profiles:
+    startup_profile = ordered_profiles[0]
+
+config["DEFAULT"]["ProfileOrder"] = ", ".join(ordered_profiles)
+config["DEFAULT"]["StartupProfile"] = startup_profile
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
 
-# Init Config Vars
+
+def load_profile(section_name):
+    section = config[section_name]
+    return {
+        "name": section.get("Name", section_name),
+        "media_path": section.get("MediaPath", config["DEFAULT"]["MediaPath"]),
+        "media_type": section.get("MediaType", config["DEFAULT"]["MediaType"]).upper(),
+        "lcd_type": 0x00000001 if section.get("LCDType", config["DEFAULT"]["LCDType"]).upper() == "MONO" else 0x00000002,
+        "applet_name": section.get("AppletName", config["DEFAULT"]["AppletName"]),
+    }
+
+active_profile_names = ordered_profiles
+active_profile_index = active_profile_names.index(startup_profile)
+active_profile = load_profile(startup_profile)
 DLLPath = config["DEFAULT"]["DLLPath"]
-MediaPath = config["DEFAULT"]["MediaPath"]
-MediaType = config["DEFAULT"]["MediaType"]
+MediaPath = active_profile["media_path"]
+MediaType = active_profile["media_type"]
 # convert the applet name to the correct format for thhe dll
-AppletName = ctypes.c_wchar_p(config["DEFAULT"]["AppletName"])
-if config["DEFAULT"]["LCDType"] == "MONO":
-    LCDType = 0x00000001  # Mono is HEX 1
-else:
-    LCDType = 0x00000002  # Color is HEX 2
+AppletName = ctypes.c_wchar_p(active_profile["applet_name"])
+LCDType = active_profile["lcd_type"]
 
 
 # Code
@@ -53,7 +86,9 @@ try:
     
     LogiLCDButtonPressed = LogiLCD.LogiLcdIsButtonPressed # LogiLcdIsButtonPressed(int buttonFlag)
     button_queue = queue.Queue()
-    BUTTON_FLAGS = (0x00000001, 0x00000002, 0x00000004, 0x00000008, 0x00000010, 0x00000020, 0x00000040)
+    PROFILE_BUTTON_PREV = 0x00000001
+    PROFILE_BUTTON_NEXT = 0x00000002
+    BUTTON_FLAGS = (PROFILE_BUTTON_PREV, PROFILE_BUTTON_NEXT, 0x00000004, 0x00000008, 0x00000010, 0x00000020, 0x00000040)
     # Button Flag (Hex Constants)	G13 / G15 / G510 Soft-keys	G19 Color Soft-keys
     # 0x00000001	                Button 0 (Far Left)         Left Arrow Button
     # 0x00000002	                Button 1                    Right Arrow Button
@@ -153,12 +188,26 @@ def openAndDecodeImage(path):
 # loop thru a folder to find media files and display them
 def loopThroughFolder(folder):
     for filename in os.listdir(folder):
+        if profile_change_event.is_set():
+            return
         print(f"Processing file: {filename}")
         table, fps = openAndDecodeImage(os.path.join(folder, filename))
         for img in table:
+            if profile_change_event.is_set():
+                return
             sendImage(img)
             LogiLCDUpdate()
             time.sleep(1/fps)  # delay to control frame rate
+
+# show a single file
+def displayFile(path):
+    table, fps = openAndDecodeImage(path)
+    for img in table:
+        if profile_change_event.is_set():
+            return
+        sendImage(img)
+        LogiLCDUpdate()
+        time.sleep(1/fps)
 
 # create a thread to check for button presses without blocking the main thread
 lastPressed = []
@@ -173,10 +222,34 @@ def asyncButtonWorker():
             handleButtonPresses()
         time.sleep(0.02)
 
+profile_lock = threading.Lock()
+profile_change_event = threading.Event()
+
+
+def set_active_profile(new_index):
+    global active_profile_index, active_profile, MediaPath, MediaType, AppletName, LCDType
+    new_index %= len(active_profile_names)
+    if new_index == active_profile_index:
+        return
+    active_profile_index = new_index
+    active_profile = load_profile(active_profile_names[active_profile_index])
+    MediaPath = active_profile["media_path"]
+    MediaType = active_profile["media_type"]
+    AppletName = ctypes.c_wchar_p(active_profile["applet_name"])
+    LCDType = active_profile["lcd_type"]
+    print(f"Switched to profile: {active_profile['name']} ({active_profile_names[active_profile_index]})")
+    profile_change_event.set()
+
+
 def handleButtonPresses():
     try:
         currentlyPressed = button_queue.get_nowait()
         print(f"Buttons currently pressed: {currentlyPressed}")
+        for btn in currentlyPressed:
+            if btn == PROFILE_BUTTON_PREV:
+                set_active_profile(active_profile_index - 1)
+            elif btn == PROFILE_BUTTON_NEXT:
+                set_active_profile(active_profile_index + 1)
     except queue.Empty:
         currentlyPressed = None
 
@@ -185,13 +258,20 @@ try:
         input_thread = threading.Thread(target=asyncButtonWorker, daemon=True)
         input_thread.start()
         while True:
+            if profile_change_event.is_set():
+                profile_change_event.clear()
+                continue
+
             if MediaType == "FOLDER":
                 loopThroughFolder(MediaPath)
-            if MediaType == "FILE":
-                openAndDecodeImage(MediaPath)
-            if MediaType == "SCREEN":
+            elif MediaType == "FILE":
+                displayFile(MediaPath)
+            elif MediaType == "SCREEN":
                 captureScreen()
-                
+            else:
+                print(f"Unknown media type: {MediaType}")
+                time.sleep(1)
+
             time.sleep(0.001)
 
     else:
