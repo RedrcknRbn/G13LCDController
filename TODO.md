@@ -1,6 +1,7 @@
-- [ ] Cycle between images in a folder
+- [x] Cycle between images in a folder
 - [x] GIF support
-- [ ] Video support
+	- [ ] proper per-frame duration sleep
+- [x] Video support
 - [ ] Streamed Video Support (such as VLC's Network Stream system)
 - [ ] Multiple configurations for hotswapping modes
 	- [ ] Add control for swapping config onto the actual G13

@@ -4,6 +4,7 @@ import ctypes
 import configparser
 import time
 import textwrap
+import imageio
 from PIL import Image, ImageDraw, ImageGrab, GifImagePlugin
 
 # Config-related thingies
@@ -88,26 +89,50 @@ def captureScreen():
     img = convertImage(img)
     sendImage(img)
 
-# decodes an image (or each frame of a gif) and returns a list of Pillow images
+# decodes a file and returns a list of Pillow images
 def openAndDecodeImage(path):
-    img = Image.open(path)
     table = []
-    if img.is_animated:
-        for frame in range(img.n_frames):
-            img.seek(frame)
-            table.append(convertImage(img.copy()))
-    else:
-        table.append(convertImage(img))
-    return table
+    fps = 1  # default fps (so images show for 1 second if the file is not a video or animated image)
+    try:
+        with Image.open(path) as img:
+            img.verify()  # verify that it's a Pillow supported format
+            # check to see if its gif or apng (or any other formats that are animated)
+            if img.is_animated:
+                durations = [] # we want to average out the duration because im lazy and dont wanna write a per-frame sleep
+                for frame in range(img.n_frames):
+                    img.seek(frame)
+                    table.append(convertImage(img.copy()))
+                    durations.append(img.info.get('duration', 100))  # default to 100ms if not available
+                fps = 1000 / (sum(durations) / len(durations)) # ugly math!
+            else:
+                table.append(convertImage(img))
+    except:  # if its not Pillow supported, it's possibly a video file
+        try:
+            reader = imageio.get_reader(path)
+            fps = reader.get_meta_data().get('fps', 30)  # default to 30 fps if not available
+            for frame in reader:
+                pil_image = Image.fromarray(frame)
+                table.append(convertImage(pil_image))
+        except:  # its an evil file
+            print(f"Error occurred while processing file: {path}")
+    return table, fps
+
+# loop thru a folder to find media files and display them
+def loopThroughFolder(folder):
+    for filename in os.listdir(folder):
+        print(f"Processing file: {filename}")
+        table, fps = openAndDecodeImage(os.path.join(folder, filename))
+        for img in table:
+            sendImage(img)
+            LogiLCDUpdate()
+            time.sleep(1/fps)  # delay to control frame rate
 
 
 try:
     if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
         while True:
-            for img in openAndDecodeImage("test.gif"):
-                sendImage(img)
-                LogiLCDUpdate()
-                time.sleep(1/30)
+            # main loop
+            loopThroughFolder(".")
 
     else:
         print("SDK initalized, but no device was detected")
