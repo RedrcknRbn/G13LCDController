@@ -43,27 +43,38 @@ try:
     LogiLCD = ctypes.CDLL(DLLPath)
     
     # attempt to load the needed DLL functions
-    LogiLCDInit = LogiLCD.LogiLcdInit
+    LogiLCDInit = LogiLCD.LogiLcdInit # LogiLcdInit(wchar_t* displayName, int displayType)
     LogiLCDInit.restype = ctypes.c_bool
     LogiLCDInit.argtypes = [ctypes.c_wchar_p, ctypes.c_int]
+    # displayType: Mono (0x00000001) or Color (0x00000002)
     
-    LogiLCDConnection = LogiLCD.LogiLcdIsConnected
+    LogiLCDConnection = LogiLCD.LogiLcdIsConnected # LogiLcdIsConnected(int displayType)
     LogiLCDConnection.restype = ctypes.c_bool
     LogiLCDConnection.argtypes = [ctypes.c_int]
+    # displayType: Mono (0x00000001) or Color (0x00000002)
     
-    LogiLCDButtonPressed = LogiLCD.LogiLcdIsButtonPressed
+    LogiLCDButtonPressed = LogiLCD.LogiLcdIsButtonPressed # LogiLcdIsButtonPressed(int buttonFlag)
     LogiLCDButtonPressed.restype = ctypes.c_bool
     LogiLCDButtonPressed.argtypes = [ctypes.c_int]
+    # Button Flag (Hex Constants)	G13 / G15 / G510 Soft-keys	G19 Color Soft-keys
+    # 0x00000001	                Button 0 (Far Left)         Left Arrow Button
+    # 0x00000002	                Button 1                    Right Arrow Button
+    # 0x00000004	                Button 2                    Up Arrow Button
+    # 0x00000008	                Button 3 (Far Right)	    Down Arrow Button
+    # 0x00000010	                N/A	                        "OK" / Select Button
+    # 0x00000020	                N/A	                        "Cancel" / Back Button
+    # 0x00000040	                N/A	                        Menu Button
     
-    LogiLCDUpdate = LogiLCD.LogiLcdUpdate
-    LogiLCDShutdown = LogiLCD.LogiLcdShutdown
+    LogiLCDUpdate = LogiLCD.LogiLcdUpdate # LogiLcdUpdate()
+    LogiLCDShutdown = LogiLCD.LogiLcdShutdown # LogiLcdShutdown()
     
     # mono functions
-    MonoSetText = LogiLCD.LogiLcdMonoSetText
+    MonoSetText = LogiLCD.LogiLcdMonoSetText # LogiLcdMonoSetText(int lineNumber, wchar_t* text)
     MonoSetText.restype = ctypes.c_bool
     MonoSetText.argtypes = [ctypes.c_int, ctypes.c_wchar_p]
+    # lineNumber: 0-3 for mono displays, 0-7 for color displays
     
-    MonoSetBackground = LogiLCD.LogiLcdMonoSetBackground
+    MonoSetBackground = LogiLCD.LogiLcdMonoSetBackground # LogiLcdMonoSetBackground(BYTE monoBitmap[])
     MonoSetBackground.restype = ctypes.c_bool
     MonoSetBackground.argtypes = [ctypes.POINTER(ctypes.c_ubyte)]
     
