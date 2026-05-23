@@ -2,7 +2,7 @@
 This project displays images, GIFs, videos, or screen captures on the Logitech G13 LCD via the Logitech SDK.
 ## Requirements
 - Windows
-- Python 3.8+ (64-bit)
+- Python 3.14.3+ (64-bit)
 - Logitech Gaming Software installed with the `LogitechLcd.dll` SDK available
 - A supported Logitech LCD device connected (G13, G15, G510, etc.)
 ## Setup
