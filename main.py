@@ -5,30 +5,32 @@ import configparser
 import time
 import textwrap
 import imageio
-from PIL import Image, ImageDraw, ImageGrab, GifImagePlugin
+from PIL import Image, ImageDraw, ImageGrab, GifImagePlugin, UnidentifiedImageError
 
 # Config-related thingies
 config = configparser.ConfigParser()
 config.read("config.ini")
-if "SETTINGS" not in config:
-    config["SETTINGS"] = {}
+if "DEFAULT" not in config:
+    config["DEFAULT"] = {}
 # set default config stuff
-config["SETTINGS"].setdefault(
+config["DEFAULT"].setdefault(
     "DLLPath", r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll")
-config["SETTINGS"].setdefault("AppletName", r"Python LCD Controller")
+config["DEFAULT"].setdefault("AppletName", r"Python LCD Controller")
 # we ONLY support mono for now. ( i dont have a color g13 :3 )
-config["SETTINGS"].setdefault("LCDType", r"MONO")
-config["SETTINGS"].setdefault("MediaPath", r"./media")
+config["DEFAULT"].setdefault("LCDType", r"MONO")
+config["DEFAULT"].setdefault("MediaPath", r"./media")
+config["DEFAULT"].setdefault("MediaType", r"FOLDER") # FOLDER for looping through a folder, FILE for just displaying a single file, SCREEN for capturing the screen and displaying it
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
 
 # Init Config Vars
-DLLPath = config["SETTINGS"]["DLLPath"]
-MediaPath = config["SETTINGS"]["MediaPath"]
+DLLPath = config["DEFAULT"]["DLLPath"]
+MediaPath = config["DEFAULT"]["MediaPath"]
+MediaType = config["DEFAULT"]["MediaType"]
 # convert the applet name to the correct format for thhe dll
-AppletName = ctypes.c_wchar_p(config["SETTINGS"]["AppletName"])
-if config["SETTINGS"]["LCDType"] == "MONO":
+AppletName = ctypes.c_wchar_p(config["DEFAULT"]["AppletName"])
+if config["DEFAULT"]["LCDType"] == "MONO":
     LCDType = 0x00000001  # Mono is HEX 1
 else:
     LCDType = 0x00000002  # Color is HEX 2
@@ -90,32 +92,38 @@ def captureScreen():
     img = ImageGrab.grab()
     img = convertImage(img)
     sendImage(img)
+    LogiLCDUpdate()
+    time.sleep(1/30)
 
 # decodes a file and returns a list of Pillow images
 def openAndDecodeImage(path):
     table = []
-    fps = 1  # default fps (so images show for 1 second if the file is not a video or animated image)
+    fps = 0.5  # default fps (so images show for 2 seconds if the file is not a video or animated image)
     try:
-        with Image.open(path) as img:
-            img.verify()  # verify that it's a Pillow supported format
-            # check to see if its gif or apng (or any other formats that are animated)
-            if img.is_animated:
-                durations = [] # we want to average out the duration because im lazy and dont wanna write a per-frame sleep
-                for frame in range(img.n_frames):
-                    img.seek(frame)
-                    table.append(convertImage(img.copy()))
-                    durations.append(img.info.get('duration', 100))  # default to 100ms if not available
-                fps = 1000 / (sum(durations) / len(durations)) # ugly math!
+        img = Image.open(path)
+        # check to see if it's an animated image (GIF, APNG, etc.)
+        if getattr(img, 'is_animated', False):
+            durations = []
+            frame_count = getattr(img, 'n_frames', 1)
+            for frame in range(frame_count):
+                img.seek(frame)
+                table.append(convertImage(img.copy()))
+                durations.append(img.info.get('duration', 100))  # default to 100ms
+            if frame_count == 1:
+                fps = 0.5
             else:
-                table.append(convertImage(img))
-    except:  # if its not Pillow supported, it's possibly a video file
+                fps = 1000 / (sum(durations) / len(durations))
+        else:
+            table.append(convertImage(img.copy()))
+    except UnidentifiedImageError:
+        # Not an image Pillow can handle; try reading as a video with imageio
         try:
             reader = imageio.get_reader(path)
             fps = reader.get_meta_data().get('fps', 30)  # default to 30 fps if not available
             for frame in reader:
                 pil_image = Image.fromarray(frame)
                 table.append(convertImage(pil_image))
-        except:  # its an evil file
+        except Exception:
             print(f"Error occurred while processing file: {path}")
     return table, fps
 
@@ -134,7 +142,12 @@ try:
     if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
         while True:
             # main loop
-            loopThroughFolder(MediaPath)
+            if MediaType == "FOLDER":
+                loopThroughFolder(MediaPath)
+            if MediaType == "FILE":
+                openAndDecodeImage(MediaPath)
+            if MediaType == "SCREEN":
+                captureScreen()
 
     else:
         print("SDK initalized, but no device was detected")
