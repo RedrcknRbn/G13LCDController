@@ -4,7 +4,7 @@ import ctypes
 import configparser
 import time
 import textwrap
-from PIL import Image, ImageDraw, ImageGrab
+from PIL import Image, ImageDraw, ImageGrab, GifImagePlugin
 
 # Config-related thingies
 config = configparser.ConfigParser()
@@ -15,7 +15,8 @@ if "SETTINGS" not in config:
 config["SETTINGS"].setdefault(
     "DLLPath", r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll")
 config["SETTINGS"].setdefault("AppletName", r"Python LCD Controller")
-config["SETTINGS"].setdefault("LCDType", r"MONO") # we ONLY support mono for now. ( i dont have a color g13 :3 )
+# we ONLY support mono for now. ( i dont have a color g13 :3 )
+config["SETTINGS"].setdefault("LCDType", r"MONO")
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
@@ -56,6 +57,7 @@ if not init_success:
 
 # Functions to handle rendering
 
+# wraps a string and send to the driver
 def wrapText(inputText):
     # Each line supports ~26-30 characters, so we'll need wrapping for each 26 characters (to be safe!)  -- SUBNOTE: IT TURNS OUT CHARACTERS ARENT MONOSPACED ON THIS THING. FUCCCCKKKKKKKKKKKKKKKKKKKK
     # This also means we need to split it up into a max of 4 lines for the mono display
@@ -63,32 +65,49 @@ def wrapText(inputText):
     for i, text in enumerate(userText):
         MonoSetText(i, ctypes.c_wchar_p(text))
 
-
+# sends the image to the driver
 def sendImage(img):  # takes in a 160x43 Pillow image in monochrome mode
-    imgbytes = img.tobytes()
-    byte_array_type = ctypes.c_byte * 6880
-    lcd_buffer = byte_array_type.from_buffer(bytearray(imgbytes))
-    MonoSetBackground(lcd_buffer)
+    if img:
+        imgbytes = img.tobytes()
+        byte_array_type = ctypes.c_byte * 6880
+        lcd_buffer = byte_array_type.from_buffer(bytearray(imgbytes))
+        MonoSetBackground(lcd_buffer)
 
 # convert the image to the correct format for the LCD (160x43, monochrome)
 def convertImage(img):
-    img = img.convert("L")
-    img = img.resize((160, 43), Image.Resampling.LANCZOS)
-    # mono devices are EVIL and only support 2 states (on/off)
-    img = img.point(lambda x: 255 if x >= 128 else 0)
-    return img
+    if img:
+        img = img.convert("L")
+        img = img.resize((160, 43), Image.Resampling.LANCZOS)
+        # mono devices are EVIL and only support 2 states (on/off)
+        img = img.point(lambda x: 255 if x >= 128 else 0)
+        return img
 
+# screenshot!
 def captureScreen():
     img = ImageGrab.grab()
     img = convertImage(img)
     sendImage(img)
 
+# decodes an image (or each frame of a gif) and returns a list of Pillow images
+def openAndDecodeImage(path):
+    img = Image.open(path)
+    table = []
+    if img.is_animated:
+        for frame in range(img.n_frames):
+            img.seek(frame)
+            table.append(convertImage(img.copy()))
+    else:
+        table.append(convertImage(img))
+    return table
+
+
 try:
     if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
         while True:
-            sendImage(convertImage(Image.open("image.png")))
-            LogiLCDUpdate()
-            time.sleep(1/30)
+            for img in openAndDecodeImage("test.gif"):
+                sendImage(img)
+                LogiLCDUpdate()
+                time.sleep(1/30)
 
     else:
         print("SDK initalized, but no device was detected")
