@@ -173,8 +173,8 @@ def openAndDecodeImage(path):
                 fps = 1000 / (sum(durations) / len(durations))
         else:
             table.append(convertImage(img.copy()))
-    except UnidentifiedImageError:
-        # Not an image Pillow can handle; try reading as a video with imageio
+    except (UnidentifiedImageError, FileNotFoundError, OSError):
+        # Not an image Pillow can handle or file cannot be opened; try reading as a video with imageio
         try:
             reader = imageio.get_reader(path)
             fps = reader.get_meta_data().get('fps', 30)  # default to 30 fps if not available
@@ -187,6 +187,11 @@ def openAndDecodeImage(path):
 
 # loop thru a folder to find media files and display them
 def loopThroughFolder(folder):
+    if not os.path.isdir(folder):
+        print(f"Media folder not found: {folder}")
+        time.sleep(1)
+        return
+
     for filename in os.listdir(folder):
         if profile_change_event.is_set():
             return
@@ -253,32 +258,37 @@ def handleButtonPresses():
     except queue.Empty:
         currentlyPressed = None
 
-try:
-    if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
-        input_thread = threading.Thread(target=asyncButtonWorker, daemon=True)
-        input_thread.start()
-        while True:
-            if profile_change_event.is_set():
-                profile_change_event.clear()
-                continue
+def main():
+    try:
+        if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
+            input_thread = threading.Thread(target=asyncButtonWorker, daemon=True)
+            input_thread.start()
+            while True:
+                if profile_change_event.is_set():
+                    profile_change_event.clear()
+                    continue
 
-            if MediaType == "FOLDER":
-                loopThroughFolder(MediaPath)
-            elif MediaType == "FILE":
-                displayFile(MediaPath)
-            elif MediaType == "SCREEN":
-                captureScreen()
-            else:
-                print(f"Unknown media type: {MediaType}")
-                time.sleep(1)
+                if MediaType == "FOLDER":
+                    loopThroughFolder(MediaPath)
+                elif MediaType == "FILE":
+                    displayFile(MediaPath)
+                elif MediaType == "SCREEN":
+                    captureScreen()
+                else:
+                    print(f"Unknown media type: {MediaType}")
+                    time.sleep(1)
 
-            time.sleep(0.001)
+                time.sleep(0.001)
 
-    else:
-        print("SDK initalized, but no device was detected")
+        else:
+            print("SDK initalized, but no device was detected")
 
-finally:
-    if 'input_thread' in locals():
-        input_thread.do_run = False
-    print("Shutting down applet")
-    LogiLCDShutdown()
+    finally:
+        if 'input_thread' in locals():
+            input_thread.do_run = False
+        print("Shutting down applet")
+        LogiLCDShutdown()
+
+
+if __name__ == "__main__":
+    main()
