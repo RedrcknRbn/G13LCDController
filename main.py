@@ -5,6 +5,8 @@ import configparser
 import time
 import textwrap
 import imageio
+import threading
+import queue
 from PIL import Image, ImageDraw, ImageGrab, GifImagePlugin, UnidentifiedImageError
 
 # Config-related thingies
@@ -44,18 +46,14 @@ try:
     
     # attempt to load the needed DLL functions
     LogiLCDInit = LogiLCD.LogiLcdInit # LogiLcdInit(wchar_t* displayName, int displayType)
-    LogiLCDInit.restype = ctypes.c_bool
-    LogiLCDInit.argtypes = [ctypes.c_wchar_p, ctypes.c_int]
     # displayType: Mono (0x00000001) or Color (0x00000002)
     
     LogiLCDConnection = LogiLCD.LogiLcdIsConnected # LogiLcdIsConnected(int displayType)
-    LogiLCDConnection.restype = ctypes.c_bool
-    LogiLCDConnection.argtypes = [ctypes.c_int]
     # displayType: Mono (0x00000001) or Color (0x00000002)
     
     LogiLCDButtonPressed = LogiLCD.LogiLcdIsButtonPressed # LogiLcdIsButtonPressed(int buttonFlag)
-    LogiLCDButtonPressed.restype = ctypes.c_bool
-    LogiLCDButtonPressed.argtypes = [ctypes.c_int]
+    button_queue = queue.Queue()
+    BUTTON_FLAGS = (0x00000001, 0x00000002, 0x00000004, 0x00000008, 0x00000010, 0x00000020, 0x00000040)
     # Button Flag (Hex Constants)	G13 / G15 / G510 Soft-keys	G19 Color Soft-keys
     # 0x00000001	                Button 0 (Far Left)         Left Arrow Button
     # 0x00000002	                Button 1                    Right Arrow Button
@@ -70,13 +68,9 @@ try:
     
     # mono functions
     MonoSetText = LogiLCD.LogiLcdMonoSetText # LogiLcdMonoSetText(int lineNumber, wchar_t* text)
-    MonoSetText.restype = ctypes.c_bool
-    MonoSetText.argtypes = [ctypes.c_int, ctypes.c_wchar_p]
     # lineNumber: 0-3 for mono displays, 0-7 for color displays
     
     MonoSetBackground = LogiLCD.LogiLcdMonoSetBackground # LogiLcdMonoSetBackground(BYTE monoBitmap[])
-    MonoSetBackground.restype = ctypes.c_bool
-    MonoSetBackground.argtypes = [ctypes.POINTER(ctypes.c_ubyte)]
     
 except OSError as e:
     print(
@@ -166,21 +160,45 @@ def loopThroughFolder(folder):
             LogiLCDUpdate()
             time.sleep(1/fps)  # delay to control frame rate
 
+# create a thread to check for button presses without blocking the main thread
+lastPressed = []
+def asyncButtonWorker():
+    global lastPressed
+    while getattr(threading.current_thread(), "do_run", True):
+        currentlyDown = [flag for flag in BUTTON_FLAGS if LogiLCDButtonPressed(flag)]
+        newPressed = [btn for btn in currentlyDown if btn not in lastPressed]
+        lastPressed = currentlyDown
+        if newPressed:
+            button_queue.put(newPressed)
+            handleButtonPresses()
+        time.sleep(0.02)
+
+def handleButtonPresses():
+    try:
+        currentlyPressed = button_queue.get_nowait()
+        print(f"Buttons currently pressed: {currentlyPressed}")
+    except queue.Empty:
+        currentlyPressed = None
 
 try:
     if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
+        input_thread = threading.Thread(target=asyncButtonWorker, daemon=True)
+        input_thread.start()
         while True:
-            # main loop
             if MediaType == "FOLDER":
                 loopThroughFolder(MediaPath)
             if MediaType == "FILE":
                 openAndDecodeImage(MediaPath)
             if MediaType == "SCREEN":
                 captureScreen()
+                
+            time.sleep(0.001)
 
     else:
         print("SDK initalized, but no device was detected")
 
 finally:
+    if 'input_thread' in locals():
+        input_thread.do_run = False
     print("Shutting down applet")
     LogiLCDShutdown()
