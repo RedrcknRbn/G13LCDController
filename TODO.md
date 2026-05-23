@@ -1,0 +1,6 @@
+- [ ] Cycle between images in a folder
+- [ ] GIF support
+- [ ] Video support
+- [ ] Multiple configurations for hotswapping modes
+	- [ ] Add control for swapping config onto the actual G13
+- [ ] Create as startup service (?)

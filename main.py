@@ -15,7 +15,7 @@ if "SETTINGS" not in config:
 config["SETTINGS"].setdefault(
     "DLLPath", r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll")
 config["SETTINGS"].setdefault("AppletName", r"Python LCD Controller")
-config["SETTINGS"].setdefault("LCDType", r"MONO")
+config["SETTINGS"].setdefault("LCDType", r"MONO") # we ONLY support mono for now. ( i dont have a color g13 :3 )
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
@@ -56,7 +56,6 @@ if not init_success:
 
 # Functions to handle rendering
 
-
 def wrapText(inputText):
     # Each line supports ~26-30 characters, so we'll need wrapping for each 26 characters (to be safe!)  -- SUBNOTE: IT TURNS OUT CHARACTERS ARENT MONOSPACED ON THIS THING. FUCCCCKKKKKKKKKKKKKKKKKKKK
     # This also means we need to split it up into a max of 4 lines for the mono display
@@ -71,6 +70,7 @@ def sendImage(img):  # takes in a 160x43 Pillow image in monochrome mode
     lcd_buffer = byte_array_type.from_buffer(bytearray(imgbytes))
     MonoSetBackground(lcd_buffer)
 
+# convert the image to the correct format for the LCD (160x43, monochrome)
 def convertImage(img):
     img = img.convert("L")
     img = img.resize((160, 43), Image.Resampling.LANCZOS)

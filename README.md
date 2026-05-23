@@ -3,6 +3,7 @@ An **Unofficial** Python Project for controlling a Logitech G13's LCD Screen thr
 
 PRs are heavily encouraged, as I am still very new to python, and thus this codebase is a bit bad 
 \_w\_
+You can get started by reading TODO.md!
 
 *Works with the Logitech G13 Programmable Gameboard with LCD Display®*
 *This product is not affiliated with Logitech*
