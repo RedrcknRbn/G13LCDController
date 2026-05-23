@@ -41,14 +41,32 @@ else:
 # DLL Loading
 try:
     LogiLCD = ctypes.CDLL(DLLPath)
+    
     # attempt to load the needed DLL functions
     LogiLCDInit = LogiLCD.LogiLcdInit
+    LogiLCDInit.restype = ctypes.c_bool
+    LogiLCDInit.argtypes = [ctypes.c_wchar_p, ctypes.c_int]
+    
+    LogiLCDConnection = LogiLCD.LogiLcdIsConnected
+    LogiLCDConnection.restype = ctypes.c_bool
+    LogiLCDConnection.argtypes = [ctypes.c_int]
+    
+    LogiLCDButtonPressed = LogiLCD.LogiLcdIsButtonPressed
+    LogiLCDButtonPressed.restype = ctypes.c_bool
+    LogiLCDButtonPressed.argtypes = [ctypes.c_int]
+    
     LogiLCDUpdate = LogiLCD.LogiLcdUpdate
     LogiLCDShutdown = LogiLCD.LogiLcdShutdown
-    LogiLCDConnection = LogiLCD.LogiLcdIsConnected
+    
     # mono functions
     MonoSetText = LogiLCD.LogiLcdMonoSetText
+    MonoSetText.restype = ctypes.c_bool
+    MonoSetText.argtypes = [ctypes.c_int, ctypes.c_wchar_p]
+    
     MonoSetBackground = LogiLCD.LogiLcdMonoSetBackground
+    MonoSetBackground.restype = ctypes.c_bool
+    MonoSetBackground.argtypes = [ctypes.POINTER(ctypes.c_ubyte)]
+    
 except OSError as e:
     print(
         f"Could not load DLL. Ensure Python is 64-bit and path is correct:\n{e}")
