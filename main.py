@@ -9,20 +9,12 @@ from PIL import Image, ImageDraw, ImageGrab
 # Config-related thingies
 config = configparser.ConfigParser()
 config.read("config.ini")
-if "SETTINGS" in config:  # there's *probably* a better way of doing this, but idk how to do it yet
-    if not "DLLPath" in config["SETTINGS"]:
-        config["SETTINGS"]["DLLPath"] = r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll"
-    if not "AppletName" in config["SETTINGS"]:
-        config["SETTINGS"]["AppletName"] = r"Python LCD Controller"
-    if not "LCDType" in config["SETTINGS"]:
-        # we default to mono as it'll be the safest (i think)
-        config["SETTINGS"]["LCDType"] = r"MONO"
-else:
-    config["SETTINGS"] = {
-        "DLLPath": r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll",
-        "AppletName": r"Python LCD Controller",
-        "LCDType": r"MONO"
-    }
+if "SETTINGS" not in config:
+    config["SETTINGS"] = {}
+# set default config stuff
+config["SETTINGS"].setdefault("DLLPath", r"C:\Program Files\Logitech Gaming Software\SDK\LCD\x64\LogitechLcd.dll")
+config["SETTINGS"].setdefault("AppletName", r"Python LCD Controller")
+config["SETTINGS"].setdefault("LCDType", r"MONO")
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
