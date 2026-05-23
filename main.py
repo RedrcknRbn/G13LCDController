@@ -18,12 +18,14 @@ config["SETTINGS"].setdefault(
 config["SETTINGS"].setdefault("AppletName", r"Python LCD Controller")
 # we ONLY support mono for now. ( i dont have a color g13 :3 )
 config["SETTINGS"].setdefault("LCDType", r"MONO")
+config["SETTINGS"].setdefault("MediaPath", r"./media")
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
 
 # Init Config Vars
 DLLPath = config["SETTINGS"]["DLLPath"]
+MediaPath = config["SETTINGS"]["MediaPath"]
 # convert the applet name to the correct format for thhe dll
 AppletName = ctypes.c_wchar_p(config["SETTINGS"]["AppletName"])
 if config["SETTINGS"]["LCDType"] == "MONO":
@@ -132,7 +134,7 @@ try:
     if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
         while True:
             # main loop
-            loopThroughFolder(".")
+            loopThroughFolder(MediaPath)
 
     else:
         print("SDK initalized, but no device was detected")
