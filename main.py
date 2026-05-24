@@ -8,6 +8,11 @@ import imageio
 import threading
 import queue
 from PIL import Image, ImageDraw, ImageGrab, GifImagePlugin, UnidentifiedImageError
+try:
+    import pystray
+    from pystray import Icon, MenuItem, Menu
+except Exception:
+    pystray = None
 
 # Config-related thingies
 config = configparser.ConfigParser()
@@ -271,7 +276,7 @@ def read_text_file(path, max_chars=10_000):
 lastPressed = []
 def asyncButtonWorker():
     global lastPressed
-    while getattr(threading.current_thread(), "do_run", True):
+    while not shutdown_event.is_set() and getattr(threading.current_thread(), "do_run", True):
         currentlyDown = [flag for flag in BUTTON_FLAGS if LogiLCDButtonPressed(flag)]
         newPressed = [btn for btn in currentlyDown if btn not in lastPressed]
         lastPressed = currentlyDown
@@ -282,6 +287,8 @@ def asyncButtonWorker():
 
 profile_lock = threading.Lock()
 profile_change_event = threading.Event()
+shutdown_event = threading.Event()
+input_thread = None
 
 # switch profiles and update global variables accordingly
 def set_active_profile(new_index):
@@ -314,9 +321,10 @@ def handleButtonPresses():
 def main():
     try:
         if LogiLCDConnection(LCDType):  # check if an LCD is *actually* connected
+            global input_thread
             input_thread = threading.Thread(target=asyncButtonWorker, daemon=True)
             input_thread.start()
-            while True:
+            while not shutdown_event.is_set():
                 clearScreen()
                 if profile_change_event.is_set():
                     profile_change_event.clear()
@@ -345,11 +353,47 @@ def main():
             print("SDK initalized, but no device was detected")
 
     finally:
-        if 'input_thread' in locals():
+        if input_thread is not None:
             input_thread.do_run = False
+            input_thread.join(timeout=1)
         print("Shutting down applet")
         LogiLCDShutdown()
 
 
 if __name__ == "__main__":
-    main()
+    # Start the main applet loop in a background thread and run a system tray icon
+    def on_tray_exit(icon, item):
+        shutdown_event.set()
+        # signal profile change to unblock folder loops
+        profile_change_event.set()
+        if input_thread is not None:
+            input_thread.do_run = False
+        icon.stop()
+
+    # Start applet in a worker thread
+    app_thread = threading.Thread(target=main, daemon=True)
+    app_thread.start()
+
+    # If pystray is available, create a tray icon with an Exit menu
+    if pystray is not None:
+        # create a simple icon image
+        icon_img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(icon_img)
+        # draw a simple white rectangle as an icon placeholder
+        draw.rectangle((8, 8, 56, 56), fill=(255, 255, 255, 255))
+        tray_icon = Icon("G13LCDController", icon_img, "G13LCDController", menu=Menu(MenuItem('Exit', on_tray_exit)))
+        try:
+            tray_icon.run()
+        except KeyboardInterrupt:
+            on_tray_exit(tray_icon, None)
+    else:
+        # No pystray available — run until the app thread finishes
+        try:
+            while app_thread.is_alive():
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            shutdown_event.set()
+            profile_change_event.set()
+            if input_thread is not None:
+                input_thread.do_run = False
+            app_thread.join(timeout=1)
