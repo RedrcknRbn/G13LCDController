@@ -6,12 +6,20 @@ This project displays images, GIFs, videos, or screen captures on the Logitech G
 - Logitech Gaming Software installed with the `LogitechLcd.dll` SDK available
 - A supported Logitech LCD device connected (G13, G15, G510, etc.)
 ## Setup
-1. Clone the repository or download the project files.
-2. Install dependencies:
-```bash
-   pip install -r requirements.txt
-```
+1. Download the EXE from Releases
+2. Run program
 3. Open `config.ini` and update the DLL path if necessary.
+
+You can also optionally build it yourself.
+## Build
+To package the app as a Windows EXE, install the dependencies and run PyInstaller from the project root:
+
+```bash
+pip install -r requirements.txt
+pyinstaller --onefile --noconsole --icon=g13.ico --collect-all imageio --name LCDController main.py
+```
+When the build completes, the packaged EXE is available in the `dist` folder.
+
 ## Configuration
 The app uses `config.ini` for settings and profiles.
 ### Default options

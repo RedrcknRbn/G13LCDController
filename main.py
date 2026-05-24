@@ -223,6 +223,12 @@ def openAndDecodeImage(path):
 def loopThroughFolder(folder):
     if not os.path.isdir(folder):
         print(f"Media folder not found: {folder}")
+        # create media folder
+        try:
+            os.makedirs(folder)
+            print(f"Created media folder: {folder}")
+        except OSError as e:
+            print(f"Failed to create media folder: {e}")
         time.sleep(1)
         return
 

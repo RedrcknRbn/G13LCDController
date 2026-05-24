@@ -1,0 +1,1 @@
+pyinstaller --onefile --noconsole --icon=g13.ico --collect-all imageio --name LCDController main.py
