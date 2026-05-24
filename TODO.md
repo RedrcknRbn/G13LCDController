@@ -4,6 +4,7 @@
 - [x] Video support
 - [ ] Streamed Video Support (such as VLC's Network Stream system)
 - [x] Multiple configurations for hotswapping modes
-	- [ ] Add control for swapping config onto the actual G13
+	- [x] Add control for swapping config onto the actual G13
 - [ ] Create as startup service (?)
 - [ ] Add actual COLOR setup LOL
+- [ ] Turn into a python library for others to use
